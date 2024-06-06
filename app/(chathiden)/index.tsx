@@ -1,27 +1,33 @@
 import { Link } from 'expo-router';
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, Button, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
+import { View, Text, Button, StyleSheet, SafeAreaView, ScrollView, TextInput } from 'react-native';
 import { socket } from '@/socket/socket.js';
-import { TextInput } from 'react-native-gesture-handler';
+
+interface MessageObject {
+  userId: string ;
+  message: string;
+}
 
 export default function ChathiddenIndex() {
 
   const [isLoged, setIsLoged] = useState<boolean>(false);
   const [msg, setMsg] = useState<string>("");
-  const [messages, setMessages] = useState<string[]>([]);
+  const [messages, setMessages] = useState<MessageObject[]>([]);
   const chatAreaRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     setIsLoged(socket.id !== undefined);
 
-    socket.on('receive_message', (message: string) => {
-      setMessages(prevMessages => [...prevMessages, message]);
+    socket.on('receive_message', (data) => {
+      // Received user ID and message object.
+      setMessages(prevMessages => [...prevMessages, data.payload]);
     });
 
     return () => {
       socket.off('receive_message');
     };
   }, []);
+
 
   const handleConnection = () => {
     socket.connect();
@@ -34,40 +40,54 @@ export default function ChathiddenIndex() {
   }
 
   const handleSendMsg = () => {
-    socket.emit('messageToServer', {payload: {message: msg}});
+    // Add an identifier to the message, for example, the user ID.
+    const messageWithUserId = { userId: 'tuUsuarioId', message: msg };
+    socket.emit('messageToServer', messageWithUserId);
     setMsg("");
   }
 
-  return (
-    <View style={styles.container}>
-      <Text>Chathidden Index Page</Text>
-      <Link href="chathidden/profile">Profile</Link>
 
+  return (
+    <View>
+      <View style={styles.container}>
+        <Text>Chathidden Index Page</Text>
+        <Link href="chathidden/profile">Profile</Link>
+      </View>
       <View>
         {!isLoged
           ? <Button title='Connect' onPress={handleConnection} />
           : <Button color={"#ff0000"} title='Disconnect' onPress={handleDisconnect} />
         }
       </View>
+      <View>
+        <ScrollView
+          style={styles.textAreaContainer}
+          ref={chatAreaRef}
+          onContentSizeChange={() => chatAreaRef.current?.scrollToEnd({ animated: true })}
+        >
+          {messages.map((messageData, index) => (
+            <Text
+              key={index}
+              style={[
+                styles.textArea,
+                messageData.userId === 'tuUsuarioId' ? styles.myMessage : styles.otherMessage
+              ]}
+            >
+              {messageData.message}
+            </Text>
+          ))}
+        </ScrollView>
 
-      <ScrollView 
-        style={styles.textAreaContainer} 
-        ref={chatAreaRef}
-        onContentSizeChange={() => chatAreaRef.current?.scrollToEnd({ animated: true })}
-      >
-        {messages.map((message, index) => (
-          <Text key={index} style={styles.textArea}>{message}</Text>
-        ))}
-      </ScrollView>
 
-      <SafeAreaView>
-        <TextInput
-          style={styles.input}
-          onChangeText={setMsg}
-          value={msg}
-        />
-        <Button title='SendMsg' onPress={handleSendMsg} />
-      </SafeAreaView>
+        <SafeAreaView>
+          <TextInput
+            style={styles.input}
+            onChangeText={setMsg}
+            value={msg}
+          />
+          <Button title='SendMsg' onPress={handleSendMsg} />
+        </SafeAreaView>
+      </View>
     </View>
   );
 }
@@ -91,5 +111,19 @@ const styles = StyleSheet.create({
   textArea: {
     height: 150,
     justifyContent: "flex-start"
-  }
+  },
+  myMessage: {
+    backgroundColor: 'lightgreen',
+    alignSelf: 'flex-end',
+    borderRadius: 10,
+    padding: 10,
+    marginVertical: 5,
+  },
+  otherMessage: {
+    backgroundColor: 'lightgray',
+    alignSelf: 'flex-start',
+    borderRadius: 10,
+    padding: 10,
+    marginVertical: 5,
+  },
 });
